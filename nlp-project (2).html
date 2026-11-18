@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NLP – Language Model, HMM and Chatbot</title>
+<!-- Fonts and KaTeX (formulas). Without internet the site still works; formulas show as raw text. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:wght@500;600&family=Public+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+/* ===== Dəyişənlər (rəng və ölçü tokenləri) ===== */
+:root{--bg:#0f1420;--sf:#171e2f;--sf2:#1e2740;--ln:#2a3450;--tx:#e8ebf3;--mu:#98a2bd;
+--ac:#6fd3c4;--am:#f2b86b;--rd:#ef7d7d;--r:10px;color-scheme:dark}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--tx);font:16px/1.65 "Public Sans",system-ui,sans-serif;min-height:100vh}
+h1,h2,h3{font-family:Newsreader,Georgia,serif;line-height:1.2;font-weight:600}
+h1{font-size:clamp(2rem,5vw,3.2rem)}h2{font-size:1.7rem;margin-bottom:.6rem}h3{font-size:1.25rem;margin-bottom:.5rem}
+h4{margin:.9rem 0 .3rem;color:var(--am);font-size:.95rem}
+p,li{max-width:75ch}p{margin:.5rem 0}ul{padding-left:1.3rem}
+em,.mu{color:var(--mu)}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+
+/* ===== Top navigation (tabs) ===== */
+.side{position:sticky;top:0;z-index:5;background:var(--sf);border-bottom:1px solid var(--ln);padding:.7rem clamp(1rem,4vw,3rem);display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 2rem}
+.brand{font-family:Newsreader,Georgia,serif;font-size:1.2rem}
+.brand small{display:block;font:.75rem "Public Sans",sans-serif;color:var(--mu)}
+.tabs{display:flex;gap:.4rem;overflow-x:auto;flex:1}
+.tabs button{background:none;border:1px solid var(--ln);color:var(--mu);padding:.5rem 1rem;border-radius:20px;font:inherit;cursor:pointer;white-space:nowrap;transition:.2s}
+.tabs button:hover{color:var(--tx);border-color:var(--ac)}
+.tabs button.on{color:var(--bg);background:var(--ac);border-color:var(--ac);font-weight:600}
+
+/* ===== Main area ===== */
+main{flex:1;min-width:0;padding:2.2rem clamp(1rem,4vw,3rem) 4rem}
+.view{display:none;max-width:980px;margin:auto}
+.view.active{display:block;animation:in .4s}
+@keyframes in{from{opacity:0;transform:translateY(10px)}}
+.card{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1.3rem 1.4rem;margin:1.1rem 0}
+.hero{padding:2rem 0 1rem}
+.hero .cur{display:inline-block;width:.1em;height:.9em;background:var(--ac);vertical-align:-.1em;animation:bl 1s steps(2) infinite}
+@keyframes bl{50%{opacity:0}}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1.2rem 0}
+.tile{background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1.2rem;cursor:pointer;text-align:left;color:var(--tx);font:inherit;transition:.2s}
+.tile:hover{border-color:var(--ac);transform:translateY(-3px)}
+.tile b{display:block;font-family:Newsreader,Georgia,serif;font-size:1.2rem;color:var(--ac)}
+.key{border-left:3px solid var(--am);background:var(--sf2);padding:1rem 1.2rem;border-radius:0 var(--r) var(--r) 0;margin:1.4rem 0}
+.key h3{color:var(--am)}
+.note{border-left:3px solid var(--rd);padding:.5rem 1rem;background:var(--sf2);border-radius:0 var(--r) var(--r) 0;margin:.8rem 0}
+code,.f{font-family:ui-monospace,Consolas,monospace;font-size:.9em;color:var(--ac)}
+
+/* ===== Cədvəllər ===== */
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;margin:.6rem 0;font-size:.93rem}
+th,td{border:1px solid var(--ln);padding:.45rem .6rem;text-align:left}
+th{background:var(--sf2);font-weight:600}
+table.m{width:auto}table.m input{width:4.6rem}
+input,select,textarea{background:var(--bg);color:var(--tx);border:1px solid var(--ln);border-radius:6px;padding:.4rem .55rem;font:inherit}
+textarea{width:100%;min-height:80px}
+.sum.ok{color:var(--ac)}.sum.bad{color:var(--rd)}
+.btn{background:var(--ac);color:var(--bg);border:0;border-radius:var(--r);padding:.5rem 1rem;font:inherit;font-weight:600;cursor:pointer}
+.btn.ghost{background:none;color:var(--mu);border:1px solid var(--ln)}
+.row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin:.6rem 0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.2rem}
+
+/* ===== Bar diaqram ===== */
+.bar{display:grid;grid-template-columns:90px 1fr 56px;gap:8px;align-items:center;margin:.3rem 0;font-size:.9rem}
+.bar i{height:12px;border-radius:6px;background:linear-gradient(90deg,var(--ac),#3b8f86);width:var(--w);transition:width .5s}
+.bar b{text-align:right;font-weight:500}
+svg text{fill:var(--tx);font:13px "Public Sans",sans-serif}
+svg .st{fill:var(--sf2);stroke:var(--ac);stroke-width:2}
+svg .ar{fill:none;stroke:var(--am);stroke-width:1.8}
+svg .lb{fill:var(--am)}svg .sm{fill:var(--mu);font-size:12px}
+.steps p{font-family:ui-monospace,Consolas,monospace;font-size:.82rem;margin:.25rem 0;overflow-wrap:anywhere}
+.big{font-size:1.1rem;color:var(--ac)}
+
+/* ===== Timeline ===== */
+.tl{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0}
+.tl button{flex:1 1 150px;position:relative;background:var(--sf);color:var(--tx);border:1px solid var(--ln);border-radius:var(--r);padding:.6rem;font:inherit;cursor:pointer;transition:.2s;text-align:left}
+.tl button:not(:last-child)::after{content:"→";position:absolute;right:-.62rem;top:50%;transform:translateY(-50%);color:var(--am);z-index:1}
+.tl button:hover{border-color:var(--ac)}
+.tl button.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
+.tl small{display:block;opacity:.75}
+.ba{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}
+.ba span{background:var(--bg);border:1px solid var(--ln);border-radius:8px;padding:.4rem .7rem;font-family:ui-monospace,Consolas,monospace;font-size:.88rem}
+.ba b{color:var(--am)}
+
+/* ===== Chatbot ===== */
+.chat{display:flex;flex-direction:column;height:560px;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r)}
+.chat header{display:flex;justify-content:space-between;align-items:center;padding:.7rem 1rem;border-bottom:1px solid var(--ln)}
+#log{flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.6rem}
+.msg{max-width:82%;padding:.6rem .9rem;border-radius:14px;animation:in .25s}
+.msg p{margin:0;white-space:pre-wrap}.msg time{font-size:.7rem;opacity:.6}
+.msg.bot{background:var(--sf2);border-bottom-left-radius:4px;align-self:flex-start}
+.msg.user{background:var(--ac);color:var(--bg);border-bottom-right-radius:4px;align-self:flex-end}
+.typing span{display:inline-block;width:7px;height:7px;margin:0 2px;background:var(--mu);border-radius:50%;animation:dot 1s infinite}
+.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
+@keyframes dot{50%{transform:translateY(-5px);opacity:.4}}
+.chat form{display:flex;gap:.5rem;padding:.7rem;border-top:1px solid var(--ln)}
+.chat input{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.6rem 0}
+.chips button{background:var(--sf2);color:var(--tx);border:1px solid var(--ln);border-radius:20px;padding:.25rem .8rem;font:.85rem inherit;cursor:pointer}
+.chips button:hover{border-color:var(--ac)}
+#pipe li{margin:.3rem 0;color:var(--mu)}#pipe li b{color:var(--tx)}
+
+/* ===== Responsive ===== */
+@media(max-width:860px){.brand{display:none}.chat{height:480px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+</style>
+</head>
+<body>
+
+<!-- ===== Top navigation: one tab per task ===== -->
+<nav class="side" aria-label="Tasks">
+  <div class="brand">Natural Language Processing<small>Artificial Intelligence · Chapter 7</small></div>
+  <div class="tabs">
+    <button data-view="s1" class="on">Task 1 · Language Model &amp; HMM</button>
+    <button data-view="s2">Task 2 · LM Stages</button>
+    <button data-view="s3">Task 3 · Chatbot</button>
+  </div>
+</nav>
+
+<main>
+
+<!-- ===================== TASK 1 ===================== -->
+<section id="s1" class="view active">
+  <h2>Task 1 — Language Model (LM) and Hidden Markov Model (HMM)</h2>
+
+  <article class="card">
+    <h3>What is a Language Model?</h3>
+    <p>A <b>Language Model</b> assigns a probability to a sequence of words. For example, "I read a book" should be more probable than "I a book read". By the chain rule:</p>
+    $$P(w_1,w_2,\dots,w_n)=\prod_{t=1}^{n}P(w_t\mid w_1,\dots,w_{t-1})$$
+    <p><b>Next Word Prediction</b>: given the previous words, compute the probability of every word in the vocabulary and pick the most likely one. Probability is used because language is uncertain: several words can follow the same context, and the model must measure their relative likelihood. The probabilities are learned from counts in a large text collection (corpus).</p>
+  </article>
+
+  <article class="card">
+    <h3>N-gram models</h3>
+    <p>An N-gram model does not look at the whole history, only at the last <code>n−1</code> words (the Markov assumption). All words are <b>observed</b>; there is no hidden state.</p>
+    <div class="tw"><table>
+      <tr><th>Model</th><th>Context</th><th>Formula</th></tr>
+      <tr><td>Unigram</td><td>None</td><td>\(P(w_t)=\dfrac{C(w_t)}{N}\)</td></tr>
+      <tr><td>Bigram</td><td>1 previous word</td><td>\(P(w_t\mid w_{t-1})=\dfrac{C(w_{t-1},w_t)}{C(w_{t-1})}\)</td></tr>
+      <tr><td>Trigram</td><td>2 previous words</td><td>\(P(w_t\mid w_{t-2},w_{t-1})=\dfrac{C(w_{t-2},w_{t-1},w_t)}{C(w_{t-2},w_{t-1})}\)</td></tr>
+    </table></div>
+    <h4>Interactive bigram example</h4>
+    <p class="mu">Edit the text (separate sentences with a period), then choose a word. If left empty, the sentence start <code>&lt;s&gt;</code> is used.</p>
+    <textarea id="corpus">the cat sleeps. the dog runs. the cat runs. the dog sleeps. the cat sleeps.</textarea>
+    <div class="row"><label>Previous word: <input id="bgw" value="the" size="8"></label><button class="btn" id="bgGo">Calculate</button></div>
+    <div id="bgOut"></div>
+  </article>
+
+  <article class="card">
+    <h3>What is a Hidden Markov Model (HMM)?</h3>
+    <p>In an HMM the sequence is produced by a chain of <b>hidden states</b>, and we only see the <b>observations</b> each state emits. In a language example, the hidden state is a part of speech (noun, verb) and the observation is the word itself.</p>
+    <div class="tw"><table>
+      <tr><th></th><th>N-gram LM</th><th>HMM</th></tr>
+      <tr><td>State</td><td>The word itself (visible)</td><td>Hidden state (not visible)</td></tr>
+      <tr><td>Key probabilities</td><td>\(P(w_t\mid w_{t-1})\)</td><td>\(a_{ij}\) (transition) and \(b_j(w)\) (emission)</td></tr>
+      <tr><td>Typical use</td><td>Direct language modelling</td><td>POS tagging, speech recognition</td></tr>
+    </table></div>
+    <div class="note"><b>Important difference:</b> an HMM is a sequence model, not a language model in the classical sense. It can be used for next-word prediction, but then the probability is computed <b>through the hidden states</b>, not from plain N-gram counts.</div>
+  </article>
+
+  <article class="card">
+    <h3>HMM components and formulas</h3>
+    <ul>
+      <li><b>Hidden States:</b> \(Q=\{N,V\}\) (Noun, Verb)</li>
+      <li><b>Observations:</b> \(V=\{cat,dog,runs,sleeps\}\)</li>
+      <li><b>Initial Probability:</b> \(\pi_i=P(q_1=i)\), the probability of starting in state \(i\)</li>
+      <li><b>Transition Probability:</b> \(a_{ij}=P(q_{t+1}=j\mid q_t=i)\), moving from state \(i\) to state \(j\)</li>
+      <li><b>Emission Probability:</b> \(b_j(w)=P(o_t=w\mid q_t=j)\), the probability that state \(j\) emits word \(w\)</li>
+    </ul>
+    <p>Each row must sum to 1: \(\sum_i\pi_i=1,\ \sum_j a_{ij}=1,\ \sum_w b_j(w)=1\).</p>
+    <h4>Forward Algorithm</h4>
+    <p>It computes the probability of an observation sequence without enumerating every hidden path, using dynamic programming. \(\alpha_t(j)\) is the joint probability of the first \(t\) observed words and being in state \(j\) at time \(t\).</p>
+    $$\alpha_1(j)=\pi_j\,b_j(o_1)\qquad \alpha_{t+1}(j)=\Big[\sum_{i}\alpha_t(i)\,a_{ij}\Big]\,b_j(o_{t+1})\qquad P(O)=\sum_j\alpha_T(j)$$
+    <h4>How is an HMM adapted for next-word prediction?</h4>
+    <p>After seeing \(o_1\dots o_t\), we first find the distribution of the <b>next hidden state</b>, then combine it with each state's <b>emission</b> probabilities to get the word probability:</p>
+    $$P(q_{t+1}=j\mid O)=\frac{\sum_i\alpha_t(i)\,a_{ij}}{\sum_i\alpha_t(i)}\qquad P(o_{t+1}=w\mid O)=\sum_j P(q_{t+1}=j\mid O)\,b_j(w)$$
+    <p>This satisfies \(\sum_w P(o_{t+1}=w\mid O)=1\), so it is a proper probability distribution.</p>
+  </article>
+
+  <article class="card">
+    <h3>Interactive HMM calculation</h3>
+    <p class="mu">Change the probabilities and everything is recalculated automatically. If a row does not sum to 1 it is normalized during the calculation (the sum turns red).</p>
+    <div class="tw"><svg id="hmmSvg" viewBox="0 0 520 240" width="100%" role="img" aria-label="HMM diagram">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#f2b86b"/></marker></defs>
+      <circle class="st" cx="110" cy="110" r="34"/><text x="110" y="106" text-anchor="middle">N</text><text class="sm" x="110" y="124" text-anchor="middle" id="d-piN"></text>
+      <circle class="st" cx="410" cy="110" r="34"/><text x="410" y="106" text-anchor="middle">V</text><text class="sm" x="410" y="124" text-anchor="middle" id="d-piV"></text>
+      <path class="ar" marker-end="url(#ah)" d="M142 92 Q260 40 378 92"/><text class="lb" x="260" y="52" text-anchor="middle" id="d-NV"></text>
+      <path class="ar" marker-end="url(#ah)" d="M378 128 Q260 180 142 128"/><text class="lb" x="260" y="186" text-anchor="middle" id="d-VN"></text>
+      <path class="ar" marker-end="url(#ah)" d="M92 80 C60 20 140 20 122 78"/><text class="lb" x="108" y="22" text-anchor="middle" id="d-NN"></text>
+      <path class="ar" marker-end="url(#ah)" d="M392 80 C360 20 440 20 422 78"/><text class="lb" x="408" y="22" text-anchor="middle" id="d-VV"></text>
+      <text class="sm" x="110" y="165" text-anchor="middle" id="d-eN1"></text><text class="sm" x="110" y="182" text-anchor="middle" id="d-eN2"></text>
+      <text class="sm" x="410" y="165" text-anchor="middle" id="d-eV1"></text><text class="sm" x="410" y="182" text-anchor="middle" id="d-eV2"></text>
+    </svg></div>
+    <div class="cols">
+      <div><h4>Initial Probability (π)</h4><table class="m" id="tPi"></table>
+      <h4>Transition Probability (A)</h4><table class="m" id="tA"></table></div>
+      <div><h4>Emission Probability (B)</h4><div class="tw"><table class="m" id="tB"></table></div></div>
+    </div>
+    <div class="row"><b>Observation sequence:</b>
+      <select class="obs" id="o1"></select><select class="obs" id="o2"></select><select class="obs" id="o3"></select>
+      <button class="btn ghost" id="hmmReset">Default values</button></div>
+    <h4>Forward Algorithm, step by step</h4>
+    <div class="steps" id="hmmSteps"></div>
+    <h4>Next word prediction</h4>
+    <div id="hmmPred"></div>
+    <div id="hmmBars"></div>
+    <p class="mu">Example: if the first word is <code>cat</code>, the model assumes it is an N. Because the N→V transition is likely, the probabilities of <code>runs</code> and <code>sleeps</code> go up.</p>
+  </article>
+
+  <div class="key"><h3>Summary and key points</h3><ul>
+    <li>A Language Model assigns probabilities to word sequences and predicts the next word.</li>
+    <li>N-gram counts words directly; an HMM works with hidden states and emission probabilities.</li>
+    <li>The Forward Algorithm computes \(\alpha_t(j)\) recursively; for the next word, transition and emission are combined.</li>
+  </ul></div>
+</section>
+
+<!-- ===================== TASK 2 ===================== -->
+<section id="s2" class="view">
+  <h2>Task 2 — Stages of a Language Model</h2>
+  <p>Click a stage and its detailed explanation opens below. The output of each stage is the input of the next.</p>
+  <div class="tl" id="tl"></div>
+  <article class="card" id="stageBox"></article>
+
+  <article class="card">
+    <h3>Quick model comparison</h3>
+    <p>These models are not the same kind: N-gram and HMM are statistical, while RNN, LSTM and Transformer are neural-network approaches.</p>
+    <div class="tw"><table>
+      <tr><th>Model</th><th>Approach</th><th>Context</th><th>Key trait</th></tr>
+      <tr><td>N-gram</td><td>Statistical (counts)</td><td>Last n−1 words</td><td>Simple and fast; cannot see long dependencies</td></tr>
+      <tr><td>HMM</td><td>Statistical (hidden states)</td><td>Previous hidden state</td><td>Sequence labelling; not a direct language model</td></tr>
+      <tr><td>RNN</td><td>Neural</td><td>Hidden memory vector</td><td>Reads step by step; vanishing gradient problem</td></tr>
+      <tr><td>LSTM</td><td>Neural (RNN variant)</td><td>Gated memory</td><td>Keeps long dependencies better</td></tr>
+      <tr><td>Transformer</td><td>Neural (attention)</td><td>Whole context in parallel</td><td>Foundation of modern large language models</td></tr>
+    </table></div>
+  </article>
+
+  <div class="key"><h3>Summary and key points</h3><ul>
+    <li>A language model is a sequential pipeline from data collection to evaluation.</li>
+    <li>Probability calculation (training) and prediction are the core of the model.</li>
+    <li>Model quality is measured with metrics such as perplexity.</li>
+  </ul></div>
+</section>
+
+<!-- ===================== TASK 3 ===================== -->
+<section id="s3" class="view">
+  <h2>Task 3 — NLP Assistant (Chatbot)</h2>
+  <div class="note"><b>Note:</b> NLP Assistant is not ChatGPT or a large language model. There is no backend and no AI API. It is a simple <b>rule- and keyword-based</b> NLP chatbot written in JavaScript and only recognizes the topics it was built for. It understands English and Azerbaijani questions.</div>
+  <div class="chips" id="sugg"></div>
+  <div class="cols">
+    <div class="chat">
+      <header><b>NLP Assistant</b><button class="btn ghost" id="clear">Clear Chat</button></header>
+      <div id="log" aria-live="polite"></div>
+      <form id="form"><input id="msg" placeholder="Type your question (EN / AZ)..." autocomplete="off" aria-label="Message"><button class="btn">Send</button></form>
+    </div>
+    <div class="card" style="margin:0">
+      <h3>NLP stages used</h3>
+      <p class="mu">Processing result of the last message:</p>
+      <ol id="pipe"><li>The stages will appear here after you send a message.</li></ol>
+    </div>
+  </div>
+  <article class="card">
+    <h3>How does the chatbot work?</h3>
+    <ol>
+      <li><b>Text Normalization:</b> lowercase, simplify Azerbaijani letters (ə→e), remove punctuation.</li>
+      <li><b>Tokenization:</b> split the text into words.</li>
+      <li><b>Stopword removal:</b> drop words with little meaning, such as "what", "is".</li>
+      <li><b>Keyword Matching:</b> match the remaining words against each topic's weighted keywords (prefix matching handles word endings).</li>
+      <li><b>Intent Recognition:</b> pick the topic with the highest score; below the threshold, a fallback answer is given.</li>
+    </ol>
+  </article>
+  <div class="key"><h3>Summary and key points</h3><ul>
+    <li>Even a simple chatbot needs normalization, tokenization and intent recognition.</li>
+    <li>A rule-based system only recognizes predefined topics and has no general language understanding.</li>
+    <li>Large language models generate answers themselves based on probabilities.</li>
+  </ul></div>
+</section>
+
+</main>
+<script>
+'use strict';
+/* =====================================================
+   NLP layihəsi — bütün məntiq Vanilla JavaScript ilə
+   ===================================================== */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const f4 = x => x.toFixed(4), f5 = x => x.toFixed(5);
+const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+/* KaTeX ilə düsturları göstər (yüklənibsə) */
+function mathRender(el) {
+  if (window.renderMathInElement) {
+    renderMathInElement(el || document.body, {
+      delimiters: [{ left: '$$', right: '$$', display: true }, { left: '\\(', right: '\\)', display: false }],
+      throwOnError: false
+    });
+  }
+}
+window.addEventListener('load', () => mathRender());
+
+/* ---------- Navigation ---------- */
+function show(id) {
+  $$('.view').forEach(v => v.classList.toggle('active', v.id === id));
+  $$('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.view === id));
+  window.scrollTo(0, 0);
+  try { history.replaceState(null, '', '#' + id); } catch (e) { /* sandbox preview may forbid it */ }
+}
+$$('[data-view]').forEach(b => b.addEventListener('click', () => show(b.dataset.view)));
+const h0 = location.hash.slice(1);
+if (['s1', 's2', 's3'].includes(h0)) show(h0);
+
+/* ---------- Bar diaqram (ümumi funksiya) ---------- */
+function bars(el, rows) {
+  const m = Math.max(...rows.map(r => r[1]), 1e-9);
+  el.innerHTML = rows.map(([l, p]) =>
+    `<div class="bar"><span>${esc(l)}</span><i style="--w:${(p / m * 100).toFixed(1)}%"></i><b>${(p * 100).toFixed(1)}%</b></div>`).join('');
+}
+
+/* =====================================================
+   BÖLMƏ 1a — Bigram modeli: P(w_t | w_{t-1}) = C(w_{t-1},w_t) / C(w_{t-1})
+   ===================================================== */
+function bigramDemo() {
+  const sents = $('#corpus').value.toLowerCase().split(/[.!?]+/).map(s => s.match(/[\p{L}\p{N}]+/gu)).filter(Boolean);
+  const pair = {}, uni = {};
+  sents.forEach(t => {
+    const seq = ['<s>', ...t, '</s>'];
+    for (let i = 0; i < seq.length - 1; i++) {          // hər qonşu cütü say
+      uni[seq[i]] = (uni[seq[i]] || 0) + 1;
+      const k = seq[i] + '\u0001' + seq[i + 1];
+      pair[k] = (pair[k] || 0) + 1;
+    }
+  });
+  const w = $('#bgw').value.trim().toLowerCase() || '<s>';
+  const out = $('#bgOut');
+  if (!uni[w]) { out.innerHTML = `<p class="note">"${esc(w)}" was not found in the text or is a sentence end.</p>`; return; }
+  const rows = Object.keys(pair).filter(k => k.startsWith(w + '\u0001')).map(k => [k.split('\u0001')[1], pair[k], pair[k] / uni[w]]);
+  rows.sort((a, b) => b[1] - a[1]);
+  out.innerHTML = `<p>C(${esc(w)}) = <b>${uni[w]}</b>. ` + rows.map(r => `P(${esc(r[0])} | ${esc(w)}) = ${r[1]}/${uni[w]} = <b>${r[2].toFixed(3)}</b>`).join('; ') + `</p><div id="bgBars"></div>`;
+  bars($('#bgBars'), rows.map(r => [r[0], r[2]]));
+}
+$('#bgGo').addEventListener('click', bigramDemo);
+$('#bgw').addEventListener('keydown', e => { if (e.key === 'Enter') bigramDemo(); });
+$('#corpus').addEventListener('input', bigramDemo);
+bigramDemo();
+
+/* =====================================================
+   BÖLMƏ 1b — HMM: Forward Algorithm və növbəti söz proqnozu
+   ===================================================== */
+const ST = ['N', 'V'];                          // gizli vəziyyətlər
+const VOC = ['cat', 'dog', 'runs', 'sleeps'];   // müşahidələr (lüğət)
+const DEF = {
+  pi: [[0.7, 0.3]],
+  A: [[0.3, 0.7], [0.6, 0.4]],
+  B: [[0.5, 0.4, 0.05, 0.05], [0.05, 0.05, 0.5, 0.4]]
+};
+
+/* Ehtimal cədvəllərinin qurulması (input sahələri) */
+function buildTable(el, k, data, cols, rowLabels) {
+  el.innerHTML = '<tr><th></th>' + cols.map(c => `<th>${c}</th>`).join('') + '<th>Σ</th></tr>' +
+    data.map((r, i) => `<tr><th>${rowLabels[i]}</th>` +
+      r.map((v, j) => `<td><input type="number" step="0.01" min="0" max="1" value="${v}" data-k="${k}" data-i="${i}" data-j="${j}"></td>`).join('') +
+      `<td class="sum" id="sum-${k}-${i}"></td></tr>`).join('');
+}
+function buildAll() {
+  buildTable($('#tPi'), 'pi', DEF.pi, ST, ['π']);
+  buildTable($('#tA'), 'A', DEF.A, ST, ST.map(s => 'q=' + s));
+  buildTable($('#tB'), 'B', DEF.B, VOC, ST.map(s => 'q=' + s));
+  compute();
+}
+/* Cədvəli oxu, hər sətri cəm=1 olacaq şəkildə normallaşdır */
+function readTable(k, n, m) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const row = [];
+    for (let j = 0; j < m; j++)
+      row.push(Math.max(0, parseFloat($(`input[data-k="${k}"][data-i="${i}"][data-j="${j}"]`).value) || 0));
+    const s = row.reduce((a, b) => a + b, 0);
+    const c = $(`#sum-${k}-${i}`);
+    c.textContent = s.toFixed(2);
+    c.className = 'sum ' + (Math.abs(s - 1) < 0.005 ? 'ok' : 'bad');
+    out.push(s > 0 ? row.map(x => x / s) : row.map(() => 1 / m));
+  }
+  return out;
+}
+
+function compute() {
+  const pi = readTable('pi', 1, 2)[0], A = readTable('A', 2, 2), B = readTable('B', 2, 4);
+  const obs = [];
+  for (const s of $$('.obs')) { if (s.value === '') break; obs.push(+s.value); }
+  /* Diaqramdakı yazıları yenilə */
+  $('#d-piN').textContent = 'π=' + pi[0].toFixed(2); $('#d-piV').textContent = 'π=' + pi[1].toFixed(2);
+  $('#d-NN').textContent = A[0][0].toFixed(2); $('#d-NV').textContent = A[0][1].toFixed(2);
+  $('#d-VN').textContent = A[1][0].toFixed(2); $('#d-VV').textContent = A[1][1].toFixed(2);
+  ST.forEach((s, j) => {
+    $(`#d-e${s}1`).textContent = `${VOC[0]} ${B[j][0].toFixed(2)} | ${VOC[1]} ${B[j][1].toFixed(2)}`;
+    $(`#d-e${s}2`).textContent = `${VOC[2]} ${B[j][2].toFixed(2)} | ${VOC[3]} ${B[j][3].toFixed(2)}`;
+  });
+
+  /* Forward Algorithm */
+  let html = '', al = ST.map((_, j) => pi[j] * B[j][obs[0]]);
+  html += `<p><b>t=1, o₁ = ${VOC[obs[0]]}</b></p>` + ST.map((s, j) =>
+    `<p>α₁(${s}) = π(${s})·b${s}(${VOC[obs[0]]}) = ${f4(pi[j])} × ${f4(B[j][obs[0]])} = <b>${f5(al[j])}</b></p>`).join('');
+  for (let t = 1; t < obs.length; t++) {
+    const w = obs[t];
+    const nx = ST.map((_, j) => {
+      const sum = al.reduce((a, x, i) => a + x * A[i][j], 0);
+      return { sum, v: sum * B[j][w] };
+    });
+    html += `<p><b>t=${t + 1}, o${t + 1} = ${VOC[w]}</b></p>` + ST.map((s, j) =>
+      `<p>α${t + 1}(${s}) = [${al.map((x, i) => `${f5(x)}×${f4(A[i][j])}`).join(' + ')}] × b${s}(${VOC[w]}) = ${f5(nx[j].sum)} × ${f4(B[j][w])} = <b>${f5(nx[j].v)}</b></p>`).join('');
+    al = nx.map(x => x.v);
+  }
+  const Z = al.reduce((a, b) => a + b, 0);                // P(O) = Σ α_T
+  html += `<p class="big">P(O) = Σ α_T(j) = ${f5(Z)}</p>`;
+  $('#hmmSteps').innerHTML = html;
+
+  /* Növbəti söz: əvvəl gizli vəziyyət paylanması, sonra emissiya */
+  if (Z === 0) { $('#hmmPred').innerHTML = '<p class="note">This sequence has probability 0, so no prediction can be computed.</p>'; $('#hmmBars').innerHTML = ''; return; }
+  const ps = ST.map((_, j) => al.reduce((a, x, i) => a + x * A[i][j], 0) / Z);   // P(q_{t+1}=j | O)
+  const pw = VOC.map((_, w) => ps.reduce((a, p, j) => a + p * B[j][w], 0));          // P(o_{t+1}=w | O)
+  let top = 0; pw.forEach((p, i) => { if (p > pw[top]) top = i; });
+  $('#hmmPred').innerHTML =
+    `<p>Next hidden state: ` + ST.map((s, j) => `P(q=${s} | O) = <b>${f4(ps[j])}</b>`).join(', ') + `.</p>` +
+    `<div class="steps">` + VOC.map((v, w) => `<p>P(${v} | O) = ${ST.map((s, j) => `${f4(ps[j])}×${f4(B[j][w])}`).join(' + ')} = <b>${f4(pw[w])}</b></p>`).join('') + `</div>` +
+    `<p class="big">Most likely next word: ${VOC[top]} (sum = ${f4(pw.reduce((a, b) => a + b, 0))})</p>`;
+  bars($('#hmmBars'), VOC.map((v, i) => [v, pw[i]]));
+}
+
+/* Select-lərin doldurulması */
+$$('.obs').forEach((s, i) => {
+  s.innerHTML = (i ? '<option value="">—</option>' : '') + VOC.map((v, j) => `<option value="${j}">${v}</option>`).join('');
+  s.addEventListener('change', compute);
+});
+$('#o1').value = '0';
+$('#hmmReset').addEventListener('click', () => { buildAll(); });
+document.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.k) compute(); });
+buildAll();
+
+/* =====================================================
+   BÖLMƏ 2 — Mərhələlər (interaktiv timeline)
+   ===================================================== */
+const STAGES = [
+  { t: 'Data Collection', what: 'Gathering a large text collection (corpus) for the model to learn from.', why: 'Model probabilities are learned only from the text it sees; better data gives a better model.', a: 'News, books, Wikipedia', b: 'Hello World! I am reading a book.' },
+  { t: 'Text Preprocessing', what: 'Lowercasing the text and removing punctuation and extra spaces.', why: '"Hello" and "hello" must count as the same word, otherwise the vocabulary grows needlessly.', a: 'Hello, World!', b: 'hello world' },
+  { t: 'Tokenization', what: 'Splitting text into word or sub-word units (tokens).', why: 'The model works with separate units, not raw text.', a: 'hello world', b: '[hello] [world]' },
+  { t: 'Vocabulary Creation', what: 'Listing the unique tokens and giving each an ID; rare words map to &lt;unk&gt;.', why: 'It limits model size and lets tokens be represented as numbers.', a: '[hello] [world] [xyz]', b: 'hello:0 world:1 &lt;unk&gt;:2' },
+  { t: 'Model Training', what: 'Learning from the corpus. In an N-gram model, neighbouring word pairs are counted.', why: 'It turns language patterns into numeric parameters.', a: 'the cat sleeps', b: 'C(the,cat)=3, C(the)=5' },
+  { t: 'Probability Calculation', what: 'Turning counts into probabilities.', why: 'Choosing the next word is based on comparing probabilities.', a: 'C(the,cat)=3, C(the)=5', b: 'P(cat|the)=3/5=0.6', f: '\\(P(w_t\\mid w_{t-1})=\\dfrac{C(w_{t-1},w_t)}{C(w_{t-1})}\\)' },
+  { t: 'Prediction', what: 'Choosing the most likely word after a given context.', why: 'It is the basis of autocomplete, spell checking and speech recognition.', a: 'the ___', b: 'cat (0.6) > dog (0.4)', f: '\\(\\hat w=\\arg\\max_w P(w\\mid \\text{context})\\)' },
+  { t: 'Text Generation', what: 'Applying prediction repeatedly: the chosen word is added to the context and the process continues.', why: 'It is used to create new sentences and texts.', a: '&lt;s&gt;', b: '&lt;s&gt; the cat sleeps &lt;/s&gt;' },
+  { t: 'Evaluation', what: 'Measuring how well the model works on new (test) text, for example with perplexity.', why: 'Lower perplexity means the model is less "surprised" by the test text.', a: 'Test text', b: 'Perplexity = 4.2', f: '\\(PP=\\exp\\!\\Big(-\\tfrac1N\\sum_{t=1}^{N}\\ln P(w_t\\mid w_{<t})\\Big)\\)' }
+];
+function openStage(i) {
+  const s = STAGES[i];
+  $$('#tl button').forEach((b, j) => b.classList.toggle('on', i === j));
+  $('#stageBox').innerHTML = `<h3>${i + 1}. ${s.t} </h3>
+    <h4>What is it?</h4><p>${s.what}</p><h4>Why is it needed?</h4><p>${s.why}</p>
+    <h4>Simple example</h4><div class="ba"><span>${s.a}</span><b>→</b><span>${s.b}</span></div>` + (s.f ? `<p>${s.f}</p>` : '') +
+    (i < 8 ? `<p class="mu">Next stage: ${STAGES[i + 1].t}</p>` : '<p class="mu">Pipeline complete; based on the results, data or model are improved.</p>');
+  mathRender($('#stageBox'));
+}
+$('#tl').innerHTML = STAGES.map((s, i) => `<button><b>${i + 1}. ${s.t}</b><small>Stage ${i + 1}</small></button>`).join('');
+$$('#tl button').forEach((b, i) => b.addEventListener('click', () => openStage(i)));
+openStage(0);
+
+/* =====================================================
+   BÖLMƏ 3 — NLP Assistant (qayda və açar söz əsaslı)
+   ===================================================== */
+const MAP = { 'ə': 'e', 'ı': 'i', 'ö': 'o', 'ü': 'u', 'ş': 's', 'ç': 'c', 'ğ': 'g' };
+/* 1) Text Normalization: kiçik hərf, hərf sadələşdirmə, durğu silmə */
+function normalize(s) {
+  return s.toLocaleLowerCase('az').replace(/[əıöüşçğ]/g, c => MAP[c]).replace(/-/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+const STOP = new Set(['what', 'is', 'a', 'an', 'the', 'how', 'does', 'do', 'are', 'of', 'to', 'me', 'tell', 'about', 'explain', 'please', 'work', 'works', 'can', 'you',
+  'nedir', 'ne', 'nece', 'isleyir', 'haqqinda', 'mene', 'izah', 'et', 'bir', 've', 'ile', 'nedi', 'hansi']);
+const AZW = new Set(['nedir', 'ne', 'nece', 'isleyir', 'haqqinda', 'mene', 'izah', 'et', 'salam', 'sagol', 'nedi', 'hansi', 'tesekkur', 've']);
+
+/* Mövzular: açar söz -> çəki; cavablar iki dildə */
+const INTENTS = {
+  greet: { kw: { salam: 2, hello: 2, hi: 2, hey: 2, merhaba: 2 },
+    az: 'Salam! Mən NLP Assistant-am. AI, NLP, Language Model, HMM, Tokenization və chatbotlar haqqında soruşa bilərsiniz.',
+    en: 'Hello! I am NLP Assistant. Ask me about AI, NLP, Language Models, HMM, Tokenization or chatbots.' },
+  ai: { kw: { artificial: 1.5, intelligence: 1.5, suni: 1.5, intellekt: 1.5, ai: 2 },
+    az: 'Süni İntellekt (AI) maşınların öyrənmə, qərar vermə və dil anlama kimi insan zəkası tələb edən işləri yerinə yetirməsidir. NLP onun dil ilə bağlı sahəsidir.',
+    en: 'Artificial Intelligence (AI) is the field of building machines that perform tasks needing human intelligence, such as learning, decision making and understanding language. NLP is its language branch.' },
+  nlp: { kw: { nlp: 3, natural: 1.5, processing: 1, emal: 1, tebii: 1.5 },
+    az: 'Təbii Dil Emalı (NLP) kompüterlərin insan dilini anlaması, təhlil etməsi və yaratması üzrə sahədir. Məsələn: tərcümə, chatbot, mətn təsnifatı.',
+    en: 'Natural Language Processing (NLP) lets computers understand, analyze and generate human language, e.g. translation, chatbots and text classification.' },
+  lm: { kw: { language: 1.5, dil: 1.5, lm: 3, model: 0.5 },
+    az: 'Language Model (Dil modeli) söz ardıcıllığına ehtimal verən modeldir. Əsas tətbiqi növbəti sözü proqnozlaşdırmaqdır: P(w_t | w_1..w_{t-1}).',
+    en: 'A Language Model assigns probabilities to word sequences. Its core use is predicting the next word: P(w_t | w_1..w_{t-1}).' },
+  hmm: { kw: { hidden: 1.5, markov: 2, hmm: 3, hhm: 3, gizli: 1.5 },
+    az: 'Hidden Markov Model (HMM) gizli vəziyyətlər və onların buraxdığı müşahidələrlə işləyir. Parametrləri: π (başlanğıc), A (keçid), B (emissiya). Forward Algorithm ardıcıllığın ehtimalını hesablayır.',
+    en: 'A Hidden Markov Model (HMM) uses hidden states that emit observations. Its parameters are π (initial), A (transition) and B (emission); the Forward Algorithm computes the sequence probability.' },
+  token: { kw: { token: 3 },
+    az: 'Tokenization mətnin söz və ya alt-söz vahidlərinə (token) bölünməsidir. Məsələn, "salam dünya" → ["salam", "dünya"].',
+    en: 'Tokenization splits text into words or sub-word units (tokens), e.g. "hello world" → ["hello", "world"].' },
+  chatbot: { kw: { chatbot: 3, bot: 1.5, chat: 1.5 },
+    az: 'Chatbot mesajı normallaşdırır, tokenlərə bölür, açar sözlərlə mövzunu (intent) tapır və uyğun cavabı seçir. Mən də məhz bu qayda əsaslı üsulla işləyirəm.',
+    en: 'A chatbot normalizes the message, tokenizes it, finds the intent via keywords and picks a response. I work exactly this rule-based way.' },
+  ngram: { kw: { ngram: 3, bigram: 3, trigram: 3, unigram: 3 },
+    az: 'N-gram modeli növbəti sözü yalnız son n−1 sözə əsasən proqnozlaşdırır: unigram (kontekstsiz), bigram (1 söz), trigram (2 söz).',
+    en: 'An N-gram model predicts the next word from the last n−1 words: unigram (none), bigram (1 word), trigram (2 words).' },
+  thanks: { kw: { thanks: 2, thank: 2, sagol: 2, tesekkur: 2 },
+    az: 'Buyurun! Başqa sualınız varsa soruşun.', en: "You're welcome! Ask me anything else." }
+};
+const FALLBACK = {
+  az: 'Bu sualı başa düşmədim. Mən sadə açar söz əsaslı chatbot-am; AI, NLP, Language Model, HMM, N-gram, Tokenization və ya chatbot haqqında soruşun.',
+  en: "I didn't understand that. I'm a simple keyword-based chatbot; try asking about AI, NLP, Language Models, HMM, N-gram, Tokenization or chatbots."
+};
+/* Açar söz uyğunluğu: qısa sözlər dəqiq, uzun sözlər prefiks (şəkilçilər üçün) */
+const hit = (tok, kw) => tok === kw || (kw.length >= 4 && tok.startsWith(kw));
+
+function analyze(raw) {
+  const norm = normalize(raw);                                   // 1. Normalization
+  const tokens = norm.split(' ').filter(Boolean);                // 2. Tokenization
+  const az = /[əıöüşçğ]/i.test(raw) || tokens.some(t => AZW.has(t));
+  const kept = tokens.filter(t => !STOP.has(t));                 // 3. Stopword removal
+  let best = null, bestScore = 0, matched = [];                  // 4. Keyword matching
+  for (const [name, it] of Object.entries(INTENTS)) {
+    let sc = 0; const m = [];
+    kept.forEach(t => { for (const [kw, w] of Object.entries(it.kw)) if (hit(t, kw)) { sc += w; m.push(kw); break; } });
+    if (sc > bestScore) { best = name; bestScore = sc; matched = m; }
+  }
+  const intent = bestScore >= 1.5 ? best : null;                 // 5. Intent recognition (hədd = 1.5)
+  return { norm, tokens, kept, az, intent, bestScore, matched };
+}
+
+/* ---------- Chat interfeysi ---------- */
+const log = $('#log');
+function addMsg(role, text) {
+  const d = document.createElement('div'); d.className = 'msg ' + role;
+  const p = document.createElement('p'); p.textContent = text;
+  const t = document.createElement('time'); t.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  d.append(p, t); log.append(d); log.scrollTop = log.scrollHeight; return d;
+}
+function showPipeline(a) {
+  $('#pipe').innerHTML = [
+    ['Text Normalization', a.norm || '—'],
+    ['Tokenization', '[' + a.tokens.join(', ') + ']'],
+    ['Stopword removal', '[' + a.kept.join(', ') + ']'],
+    ['Keyword Matching', a.matched.length ? a.matched.join(', ') : 'no match'],
+    ['Intent Recognition', (a.intent || 'fallback') + ' (score: ' + a.bestScore.toFixed(1) + ')'],
+    ['Response Selection', a.az ? 'Azerbaijani' : 'English']
+  ].map(([k, v]) => `<li><b>${k}:</b> ${esc(v)}</li>`).join('');
+}
+function send(text) {
+  text = text.trim(); if (!text) return;
+  addMsg('user', text);
+  const a = analyze(text); showPipeline(a);
+  const typing = document.createElement('div');                  // Typing animation
+  typing.className = 'msg bot typing'; typing.innerHTML = '<span></span><span></span><span></span>';
+  log.append(typing); log.scrollTop = log.scrollHeight;
+  setTimeout(() => {
+    typing.remove();
+    const lang = a.az ? 'az' : 'en';
+    addMsg('bot', a.intent ? INTENTS[a.intent][lang] : FALLBACK[lang]);
+  }, 600 + Math.random() * 500);
+}
+function greet() { addMsg('bot', 'Hello! I am NLP Assistant, a rule-based chatbot (not an AI model). Ask me about AI, NLP, language models, HMM or tokenization. Azerbaijani questions work too.'); }
+$('#form').addEventListener('submit', e => { e.preventDefault(); const i = $('#msg'); send(i.value); i.value = ''; });
+$('#clear').addEventListener('click', () => { log.innerHTML = ''; $('#pipe').innerHTML = '<li>The stages will appear here after you send a message.</li>'; greet(); });
+$('#sugg').innerHTML = ['What is Artificial Intelligence?', 'What is NLP?', 'What is a Language Model?', 'What is Hidden Markov Model?', 'What is Tokenization?', 'How does a chatbot work?', 'Süni intellekt nədir?', 'Tokenization nədir?']
+  .map(q => `<button>${q}</button>`).join('');
+$$('#sugg button').forEach(b => b.addEventListener('click', () => send(b.textContent)));
+greet();
+
+</script>
+</body>
+</html>
